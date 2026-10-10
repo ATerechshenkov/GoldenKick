@@ -8,17 +8,20 @@
 import SwiftUI
 
 struct ContentView: View {
+    let engine: WorkoutEngine
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        switch engine.phase {
+        case .idle:
+            WorkoutListView(engine: engine)
+        case .running, .paused:
+            WorkoutRunView(engine: engine)
+        case .finished:
+            WorkoutDoneView(engine: engine)
         }
-        .padding()
     }
 }
 
 #Preview {
-    ContentView()
+    ContentView(engine: WorkoutEngine(config: .current))
 }

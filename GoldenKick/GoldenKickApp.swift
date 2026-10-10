@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct GoldenKickApp: App {
+    @State private var engine = WorkoutEngine(config: .current)
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(engine: engine)
         }
     }
 }
