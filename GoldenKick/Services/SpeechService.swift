@@ -1,5 +1,6 @@
 import AVFoundation
 
+@MainActor
 final class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
     private let voice = AVSpeechSynthesisVoice(language: "ru-RU")
