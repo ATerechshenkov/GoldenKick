@@ -50,7 +50,7 @@ final class WorkoutEngine {
         currentIndex + 1 < segments.count ? segments[currentIndex + 1] : nil
     }
 
-    var totalRealDuration: TimeInterval { config.totalDuration * timeScale }
+    var totalRealDuration: TimeInterval { segments.reduce(0) { $0 + realDuration($1) } }
 
     var progress: Double {
         guard totalRealDuration > 0 else { return 0 }
