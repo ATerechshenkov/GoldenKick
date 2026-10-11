@@ -15,10 +15,6 @@ enum RussianNumerals {
     private static let teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"]
     private static let tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"]
 
-    private static let unitsGenitive = ["нуля", "одного", "двух", "трёх", "четырёх", "пяти", "шести", "семи", "восьми", "девяти"]
-    private static let teensGenitive = ["десяти", "одиннадцати", "двенадцати", "тринадцати", "четырнадцати", "пятнадцати", "шестнадцати", "семнадцати", "восемнадцати", "девятнадцати"]
-    private static let tensGenitive = ["", "", "двадцати", "тридцати", "сорока", "пятидесяти", "шестидесяти", "семидесяти", "восьмидесяти", "девяноста"]
-
     /// Cardinal number 0...99 in words, nominative case. Falls back to digits outside the range.
     static func cardinal(_ n: Int, gender: Gender = .masculine) -> String {
         guard (0...99).contains(n) else { return String(n) }
@@ -26,15 +22,6 @@ enum RussianNumerals {
         if n < 20 { return teens[n - 10] }
         let t = tens[n / 10]
         return n % 10 == 0 ? t : "\(t) \(unit(n % 10, gender: gender))"
-    }
-
-    /// Cardinal number 1...99 in genitive case: «из шести».
-    static func genitive(_ n: Int) -> String {
-        guard (0...99).contains(n) else { return String(n) }
-        if n < 10 { return unitsGenitive[n] }
-        if n < 20 { return teensGenitive[n - 10] }
-        let t = tensGenitive[n / 10]
-        return n % 10 == 0 ? t : "\(t) \(unitsGenitive[n % 10])"
     }
 
     /// «одна минута», «две минуты», «пять минут», «одна минута тридцать секунд».
