@@ -34,6 +34,7 @@ final class WorkoutEngine {
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private let speech = SpeechService()
     @ObservationIgnored private let audio = AudioSessionKeeper()
+    @ObservationIgnored private let liveActivity = LiveActivityService()
 
     init(config: WorkoutConfig) {
         self.config = config
@@ -80,6 +81,7 @@ final class WorkoutEngine {
         phase = .running
         speech.speak("Начинаем. " + announcement(for: segments[0]), interrupt: true)
         updateDisplay(at: t)
+        liveActivity.start(title: config.title, state: makeActivityState(at: t))
         startTicking()
     }
 
@@ -91,6 +93,7 @@ final class WorkoutEngine {
         phase = .paused
         audio.stopBeeps()
         speech.speak("Пауза")
+        liveActivity.update(makeActivityState(at: now()))
     }
 
     func resume() {
@@ -100,6 +103,7 @@ final class WorkoutEngine {
         phase = .running
         speech.speak("Продолжаем")
         updateDisplay(at: t)
+        liveActivity.update(makeActivityState(at: t))
     }
 
     func stop() {
@@ -111,6 +115,7 @@ final class WorkoutEngine {
         audio.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         phase = .idle
+        liveActivity.end(makeActivityState(at: now()), immediately: true)
     }
 
     func reset() {
@@ -152,6 +157,7 @@ final class WorkoutEngine {
         if currentIndex != startIndex {
             beepsPlayed = false
             speech.speak(announcement(for: currentSegment), interrupt: true)
+            liveActivity.update(makeActivityState(at: t))
         }
 
         let left = end.timeIntervalSince(t)
@@ -184,6 +190,7 @@ final class WorkoutEngine {
 
         pendingAudioShutdown = true
         speech.speak("Тренировка завершена. Отличная работа.")
+        liveActivity.end(makeActivityState(at: now()), immediately: false)
         // Fallback in case the synthesizer never reports completion.
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(15))
@@ -212,6 +219,25 @@ final class WorkoutEngine {
         let rest = segments[(currentIndex + 1)...].reduce(0) { $0 + realDuration($1) }
         totalRemaining = remaining + rest
         elapsedActive = totalRealDuration - totalRemaining
+    }
+
+    // MARK: - Live Activity
+
+    private func makeActivityState(at t: Date) -> WorkoutActivityAttributes.ContentState {
+        WorkoutActivityAttributes.ContentState(
+            kind: currentSegment.kind,
+            segmentEnd: segmentEndDate,
+            pausedRemaining: phase == .paused ? pausedRemaining : remaining,
+            workoutStart: t.addingTimeInterval(-elapsedActive),
+            workoutEnd: t.addingTimeInterval(totalRemaining),
+            progress: progress,
+            intervalText: intervalPhrase(for: currentSegment).map { _ in
+                "Интервал \(currentSegment.repIndex ?? 0) из \(config.reps)"
+            },
+            nextText: nextSegment.map { "Дальше: \($0.kind.nextTitle) \(TimeFormat.mmss(realDuration($0)))" } ?? "Последний отрезок",
+            isPaused: phase == .paused,
+            isFinished: phase == .finished
+        )
     }
 
     // MARK: - Phrases
