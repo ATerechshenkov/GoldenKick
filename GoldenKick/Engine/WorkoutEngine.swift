@@ -231,9 +231,7 @@ final class WorkoutEngine {
             workoutStart: t.addingTimeInterval(-elapsedActive),
             workoutEnd: t.addingTimeInterval(totalRemaining),
             progress: progress,
-            intervalText: intervalPhrase(for: currentSegment).map { _ in
-                "Интервал \(currentSegment.repIndex ?? 0) из \(config.reps)"
-            },
+            intervalText: currentSegment.repIndex.map { "Интервал \($0) из \(config.reps)" },
             nextText: nextSegment.map { "Дальше: \($0.kind.nextTitle) \(TimeFormat.mmss(realDuration($0)))" } ?? "Последний отрезок",
             isPaused: phase == .paused,
             isFinished: phase == .finished

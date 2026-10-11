@@ -1,4 +1,5 @@
 import ActivityKit
+import Foundation
 
 /// Drives the workout's Live Activity. All calls are no-ops when Live Activities
 /// are disabled or unavailable, so the workout itself never depends on this succeeding.

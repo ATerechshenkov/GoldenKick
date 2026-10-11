@@ -2,8 +2,9 @@ import ActivityKit
 import SwiftUI
 
 /// The physical activity performed during a segment, independent of its role
-/// (warm-up/interval/cool-down) in the workout.
-enum Activity: Codable, Hashable {
+/// (warm-up/interval/cool-down) in the workout. Named distinctly from ActivityKit's
+/// `Activity` type, which this file also uses.
+enum ExerciseKind: Codable, Hashable {
     case run, walk
 }
 
@@ -11,7 +12,7 @@ enum SegmentKind: Codable, Hashable {
     case warmup, run, walk, cooldown
 
     /// The activity a person actually performs during this segment.
-    var activity: Activity {
+    var activity: ExerciseKind {
         switch self {
         case .run: .run
         case .walk, .warmup, .cooldown: .walk
@@ -71,10 +72,12 @@ enum TimeFormat {
 }
 
 /// Shared between the app and the widget extension to drive the workout's Live Activity.
-struct WorkoutActivityAttributes: ActivityAttributes {
+/// Explicitly non-isolated: ActivityKit stores and decodes this off the main actor,
+/// which conflicts with this project's default main-actor isolation.
+nonisolated struct WorkoutActivityAttributes: ActivityAttributes {
     let workoutTitle: String
 
-    struct ContentState: Codable, Hashable {
+    nonisolated struct ContentState: Codable, Hashable {
         var kind: SegmentKind
         /// nil while paused — the countdown is frozen then.
         var segmentEnd: Date?

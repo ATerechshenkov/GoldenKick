@@ -24,16 +24,22 @@ struct WorkoutLiveActivity: Widget {
                         .font(.title2.monospacedDigit().bold())
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        if let intervalText = context.state.intervalText {
-                            Text(intervalText)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            // Reserved even when empty so the region's height doesn't change between phases.
+                            Text(context.state.intervalText ?? " ")
                                 .font(.subheadline)
+                                .opacity(context.state.intervalText == nil ? 0 : 1)
+
+                            Spacer(minLength: 8)
+
+                            Text(context.state.isFinished ? summaryText(for: context.state) : context.state.nextText)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
-                        Text(context.state.nextText)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
                         ProgressBar(state: context.state)
                     }
+                    .padding(.horizontal, 4)
                 }
             } compactLeading: {
                 Image(systemName: context.state.kind.symbolName)
@@ -50,57 +56,69 @@ struct WorkoutLiveActivity: Widget {
     }
 }
 
+/// Total elapsed workout time once finished: `workoutStart...workoutEnd` collapses to this span
+/// as soon as `totalRemaining` hits zero, so no separate stored field is needed.
+private func summaryText(for state: WorkoutActivityAttributes.ContentState) -> String {
+    "Итого: \(TimeFormat.mmss(state.workoutEnd.timeIntervalSince(state.workoutStart)))"
+}
+
+/// Every row below is always present (reserved via `opacity`/placeholder text when not applicable)
+/// so the card's layout and height stay fixed across all phases, pause, and the finished state —
+/// nothing should reflow or resize while the Live Activity is running.
 private struct LockScreenView: View {
     let state: WorkoutActivityAttributes.ContentState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            HStack(alignment: .firstTextBaseline) {
+                CountdownView(state: state)
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .frame(width: 92, alignment: .leading)
+
+                Spacer(minLength: 8)
+
                 Text(state.isFinished ? "ТРЕНИРОВКА ЗАВЕРШЕНА" : state.kind.title)
-                    .font(.system(size: 28, weight: .heavy))
+                    .font(.system(size: 26, weight: .heavy))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                Spacer()
-                if !state.isFinished {
-                    CountdownView(state: state)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                }
+                    .minimumScaleFactor(0.5)
+                    .multilineTextAlignment(.trailing)
             }
 
-            if state.isPaused {
-                Text("ПАУЗА")
-                    .font(.subheadline.bold())
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
-                    .background(.white.opacity(0.25), in: Capsule())
-            }
+            Text("ПАУЗА")
+                .font(.subheadline.bold())
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(.white.opacity(0.25), in: Capsule())
+                .opacity(state.isPaused ? 1 : 0)
 
-            if let intervalText = state.intervalText {
-                Text(intervalText)
+            HStack {
+                Text(state.intervalText ?? " ")
                     .font(.subheadline)
-            }
+                    .opacity(state.intervalText == nil ? 0 : 1)
 
-            if !state.isFinished {
-                Text(state.nextText)
+                Spacer(minLength: 8)
+
+                Text(state.isFinished ? summaryText(for: state) : state.nextText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             ProgressBar(state: state)
         }
-        .padding()
+        .padding(20)
         .foregroundStyle(.white)
     }
 }
 
-/// Live countdown driven by the system while running; a frozen value while paused.
+/// Live countdown driven by the system while running; a frozen value while paused;
+/// pinned to "0:00" once finished, rather than disappearing.
 private struct CountdownView: View {
     let state: WorkoutActivityAttributes.ContentState
 
     var body: some View {
         if state.isFinished {
-            EmptyView()
+            Text(TimeFormat.mmss(0))
         } else if let end = state.segmentEnd {
             Text(timerInterval: Date()...max(end, Date()), countsDown: true)
         } else {

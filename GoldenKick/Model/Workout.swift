@@ -16,10 +16,10 @@ struct WorkoutConfig {
     var reps: Int
     /// Activity performed during the warm-up. If it matches the first interval
     /// exercise, that exercise is dropped to avoid two identical activities in a row.
-    var warmupActivity: Activity = .walk
+    var warmupActivity: ExerciseKind = .walk
     /// Activity performed during the cool-down. If it matches the last interval
     /// exercise, that exercise is dropped to avoid two identical activities in a row.
-    var cooldownActivity: Activity = .walk
+    var cooldownActivity: ExerciseKind = .walk
 
     /// The single place where the workout is defined.
     static let current = WorkoutConfig(warmup: 5 * 60, run: 1 * 60, walk: 2 * 60, cooldown: 5 * 60, reps: 6)
