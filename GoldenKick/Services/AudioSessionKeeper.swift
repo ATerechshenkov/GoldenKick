@@ -9,8 +9,10 @@ final class AudioSessionKeeper {
     private let session = AVAudioSession.sharedInstance()
     private var engine = AVAudioEngine()
     private var player = AVAudioPlayerNode()
+    private var beepPlayer = AVAudioPlayerNode()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)
     private var silence: AVAudioPCMBuffer?
+    private var beepPattern: AVAudioPCMBuffer?
     private(set) var isActive = false
 
     /// Called after a phone call (or other interruption) ends and audio has been restored.
@@ -18,7 +20,9 @@ final class AudioSessionKeeper {
 
     init() {
         silence = makeSilence()
+        beepPattern = makeBeepPattern()
         engine.attach(player)
+        engine.attach(beepPlayer)
         observeNotifications()
     }
 
@@ -31,12 +35,25 @@ final class AudioSessionKeeper {
     func stop() {
         isActive = false
         player.stop()
+        beepPlayer.stop()
         engine.stop()
         do {
             try session.setActive(false, options: .notifyOthersOnDeactivation)
         } catch {
             log.error("Session deactivation failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Plays a short "бип, бип, бииип" warning 3 seconds before a phase change.
+    func playCountdownBeeps() {
+        guard isActive, engine.isRunning, let beepPattern else { return }
+        beepPlayer.stop()
+        beepPlayer.scheduleBuffer(beepPattern, at: nil, completionHandler: nil)
+        beepPlayer.play()
+    }
+
+    func stopBeeps() {
+        beepPlayer.stop()
     }
 
     /// Safety net called periodically: restarts silence if the engine stopped without a notification.
@@ -59,6 +76,7 @@ final class AudioSessionKeeper {
     private func startSilence() {
         guard let format, let silence else { return }
         engine.connect(player, to: engine.mainMixerNode, format: format)
+        engine.connect(beepPlayer, to: engine.mainMixerNode, format: format)
         if !engine.isRunning {
             engine.prepare()
             do {
@@ -86,11 +104,53 @@ final class AudioSessionKeeper {
         return buffer
     }
 
+    /// Short-short-long beep pattern (880 Hz, 880 Hz, 1320 Hz) spanning 3 seconds,
+    /// baked into a single buffer so the rhythm doesn't depend on tick jitter.
+    private func makeBeepPattern() -> AVAudioPCMBuffer? {
+        guard let format else { return nil }
+        let sampleRate = format.sampleRate
+        let totalFrames = AVAudioFrameCount(sampleRate * 3)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: totalFrames),
+              let channels = buffer.floatChannelData
+        else { return nil }
+        buffer.frameLength = totalFrames
+
+        let tones: [(start: Double, duration: Double, frequency: Double)] = [
+            (0, 0.15, 880),
+            (1.0, 0.15, 880),
+            (2.0, 0.7, 1320),
+        ]
+        let fadeFrames = Int(sampleRate * 0.01)
+
+        for channel in 0..<Int(format.channelCount) {
+            channels[channel].update(repeating: 0, count: Int(totalFrames))
+            for tone in tones {
+                let startFrame = Int(tone.start * sampleRate)
+                let frameCount = Int(tone.duration * sampleRate)
+                for i in 0..<frameCount {
+                    let frame = startFrame + i
+                    guard frame < Int(totalFrames) else { break }
+                    let phase = 2 * Double.pi * tone.frequency * Double(i) / sampleRate
+                    var amplitude = 0.5
+                    if i < fadeFrames {
+                        amplitude *= Double(i) / Double(fadeFrames)
+                    } else if i > frameCount - fadeFrames {
+                        amplitude *= Double(frameCount - i) / Double(fadeFrames)
+                    }
+                    channels[channel][frame] = Float(sin(phase) * amplitude)
+                }
+            }
+        }
+        return buffer
+    }
+
     private func rebuildEngine() {
         engine.stop()
         engine = AVAudioEngine()
         player = AVAudioPlayerNode()
+        beepPlayer = AVAudioPlayerNode()
         engine.attach(player)
+        engine.attach(beepPlayer)
         observeEngineConfiguration()
     }
 

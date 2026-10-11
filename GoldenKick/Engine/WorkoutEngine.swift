@@ -28,7 +28,7 @@ final class WorkoutEngine {
 
     @ObservationIgnored private var segmentEndDate: Date?
     @ObservationIgnored private var pausedRemaining: TimeInterval = 0
-    @ObservationIgnored private var warningSpoken = false
+    @ObservationIgnored private var beepsPlayed = false
     @ObservationIgnored private var pendingAudioShutdown = false
     @ObservationIgnored private var lastAudioCheck = Date.distantPast
     @ObservationIgnored private var tickTask: Task<Void, Never>?
@@ -61,7 +61,8 @@ final class WorkoutEngine {
         segment.duration * timeScale
     }
 
-    private var warningLead: TimeInterval { timeScale < 1 ? 3 : 10 }
+    /// Lead time for the countdown beeps before a phase change.
+    private let beepLead: TimeInterval = 3
 
     // MARK: - Controls
 
@@ -69,7 +70,7 @@ final class WorkoutEngine {
         guard phase == .idle || phase == .finished else { return }
         timeScale = fastMode ? 5.0 / 60.0 : 1
         currentIndex = 0
-        warningSpoken = false
+        beepsPlayed = false
         pendingAudioShutdown = false
         UIApplication.shared.isIdleTimerDisabled = true
         audio.start()
@@ -88,6 +89,7 @@ final class WorkoutEngine {
         segmentEndDate = nil
         remaining = pausedRemaining
         phase = .paused
+        audio.stopBeeps()
         speech.speak("Пауза")
     }
 
@@ -148,16 +150,16 @@ final class WorkoutEngine {
         segmentEndDate = end
 
         if currentIndex != startIndex {
-            warningSpoken = false
+            beepsPlayed = false
             speech.speak(announcement(for: currentSegment), interrupt: true)
         }
 
         let left = end.timeIntervalSince(t)
-        if !warningSpoken, let next = nextSegment, left <= warningLead {
-            warningSpoken = true
-            // A warning that comes too late (app woke up late) is worse than none.
-            if left > warningLead - 3 {
-                speech.speak("Через десять секунд — \(next.kind.nextTitle)")
+        if !beepsPlayed, left <= beepLead {
+            beepsPlayed = true
+            // Beeps that start too late (app woke up late) are worse than none.
+            if left > 2.5 {
+                audio.playCountdownBeeps()
             }
         }
 
@@ -216,18 +218,36 @@ final class WorkoutEngine {
 
     func announcement(for segment: Segment) -> String {
         let duration = RussianNumerals.duration(segment.duration)
+        let interval = intervalPhrase(for: segment).map { "\($0) " } ?? ""
         switch segment.kind {
         case .warmup:
             return "Разминка шагом, \(duration)."
         case .run:
-            let rep = segment.repIndex ?? 1
-            let reps = "Повтор \(RussianNumerals.cardinal(rep)) из \(RussianNumerals.genitive(config.reps))."
-            return "Бег. \(reps) \(duration.capitalizedFirst)."
+            return "\(interval)Бег. \(duration.capitalizedFirst)."
         case .walk:
-            return "Шаг. \(duration.capitalizedFirst)."
+            return "\(interval)Шаг. \(duration.capitalizedFirst)."
         case .cooldown:
             return "Заминка шагом, \(duration)."
         }
+    }
+
+    /// Spoken once, at the start of each run/walk interval: a countdown of how many
+    /// intervals remain, so the number isn't repeated on every segment within it.
+    private func intervalPhrase(for segment: Segment) -> String? {
+        guard let rep = segment.repIndex else { return nil }
+        if segment.id > 0, segments[segment.id - 1].repIndex == rep { return nil }
+
+        let reps = config.reps
+        if rep == reps {
+            return "Последний интервал."
+        }
+        if rep == 1 {
+            let noun = RussianNumerals.plural(reps, one: "интервал", few: "интервала", many: "интервалов")
+            return "\(RussianNumerals.cardinal(reps).capitalizedFirst) \(noun)."
+        }
+        let left = reps - rep + 1
+        let noun = RussianNumerals.plural(left, one: "интервал", few: "интервала", many: "интервалов")
+        return "Осталось \(RussianNumerals.cardinal(left)) \(noun)."
     }
 }
 

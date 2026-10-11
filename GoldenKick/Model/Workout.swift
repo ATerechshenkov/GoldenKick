@@ -35,7 +35,7 @@ enum SegmentKind: Equatable {
         }
     }
 
-    /// Used in "Через десять секунд — …" and "Дальше: …".
+    /// Used in "Дальше: …".
     var nextTitle: String {
         switch self {
         case .warmup: "разминка"
@@ -88,8 +88,8 @@ struct WorkoutConfig {
     }
 
     func makeSegments() -> [Segment] {
-        // Rep numbers are attached before any dropping below, so "Повтор N из
-        // reps" always refers to the originally configured rep, even if its
+        // Rep numbers are attached before any dropping below, so the interval
+        // countdown always refers to the originally configured rep, even if its
         // run (or walk) was merged away.
         var intervals: [(SegmentKind, TimeInterval, Int)] = []
         for rep in 1...max(reps, 1) {

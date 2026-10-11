@@ -28,3 +28,9 @@ There is no test target yet, so there is no test command to run. When tests are 
 - `GoldenKick/ContentView.swift` — placeholder root view (template default).
 
 As the workout-assistant feature is built out, expect the architecture to grow around: a workout plan/step sequencer (warm-up → repeated run/walk intervals → cool-down → auto-finish), a timer driving phase transitions, and a speech-synthesis layer (`AVSpeechSynthesizer`) that announces each phase change. Since no such code exists yet, don't assume specific types or file names — check current files before referencing them.
+
+## Правила изменений
+
+- После изменения удаляй код, который больше не используется: функции, свойства, enum-кейсы, константы, импорты. Не оставляй старое «на всякий случай».
+- Не трогай то, что не относится к задаче.
+- В конце перечисли, что удалил и почему.
