@@ -22,9 +22,13 @@ final class WorkoutEngine {
     /// Real seconds of workout time (pauses excluded), shown on the finish screen.
     private(set) var elapsedActive: TimeInterval = 0
     private(set) var timeScale: Double = 1
+    /// Wall-clock time the workout was started, for the history record.
+    private(set) var startDate: Date?
 
     /// Injectable clock, so the catch-up logic can be exercised without waiting.
     @ObservationIgnored var now: () -> Date = { Date() }
+    /// Called once, when the workout finishes naturally (not on manual stop).
+    @ObservationIgnored var onFinish: (() -> Void)?
 
     @ObservationIgnored private var segmentEndDate: Date?
     @ObservationIgnored private var pausedRemaining: TimeInterval = 0
@@ -53,6 +57,11 @@ final class WorkoutEngine {
 
     var totalRealDuration: TimeInterval { segments.reduce(0) { $0 + realDuration($1) } }
 
+    /// Total time spent running across all intervals (nominal, not time-scaled).
+    var runDuration: TimeInterval {
+        segments.filter { $0.kind.activity == .run }.reduce(0) { $0 + $1.duration }
+    }
+
     var progress: Double {
         guard totalRealDuration > 0 else { return 0 }
         return min(1, max(0, 1 - totalRemaining / totalRealDuration))
@@ -77,6 +86,7 @@ final class WorkoutEngine {
         audio.start()
 
         let t = now()
+        startDate = t
         segmentEndDate = t.addingTimeInterval(realDuration(segments[0]))
         phase = .running
         speech.speak("Начинаем. " + announcement(for: segments[0]), interrupt: true)
@@ -191,6 +201,7 @@ final class WorkoutEngine {
         pendingAudioShutdown = true
         speech.speak("Тренировка завершена. Отличная работа.")
         liveActivity.end(makeActivityState(at: now()), immediately: false)
+        onFinish?()
         // Fallback in case the synthesizer never reports completion.
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(15))

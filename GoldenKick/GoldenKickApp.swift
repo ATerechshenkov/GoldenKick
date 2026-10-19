@@ -5,6 +5,7 @@
 //  Created by Andrey on 08.10.2026.
 //
 
+import SwiftData
 import SwiftUI
 
 @main
@@ -15,5 +16,6 @@ struct GoldenKickApp: App {
         WindowGroup {
             ContentView(engine: engine)
         }
+        .modelContainer(for: WorkoutRecord.self)
     }
 }

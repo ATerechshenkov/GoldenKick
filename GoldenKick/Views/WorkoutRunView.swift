@@ -87,6 +87,8 @@ struct WorkoutRunView: View {
                 engine.stop()
             }
             Button("Продолжить тренировку", role: .cancel) {}
+        } message: {
+            Text("Тренировка не будет сохранена в истории")
         }
     }
 }
