@@ -11,21 +11,29 @@ import SwiftUI
 struct ContentView: View {
     let engine: WorkoutEngine
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        switch engine.phase {
-        case .idle:
-            TabView {
-                WorkoutListView(engine: engine)
-                    .tabItem { Label("Тренировка", systemImage: "figure.run") }
-                WorkoutHistoryView()
-                    .tabItem { Label("История", systemImage: "clock") }
+        Group {
+            switch engine.phase {
+            case .idle:
+                TabView {
+                    TodayView(engine: engine)
+                        .tabItem { Label("Сегодня", systemImage: "sun.max") }
+                    WorkoutHistoryView()
+                        .tabItem { Label("История", systemImage: "clock") }
+                }
+                .onAppear(perform: connectHistorySaving)
+            case .running, .paused:
+                WorkoutRunView(engine: engine)
+            case .finished:
+                WorkoutDoneView(engine: engine)
             }
-            .onAppear(perform: connectHistorySaving)
-        case .running, .paused:
-            WorkoutRunView(engine: engine)
-        case .finished:
-            WorkoutDoneView(engine: engine)
+        }
+        // Covers both launch and returning to the app from the background.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard phase == .active else { return }
+            Task { await ReminderScheduler.reschedule(context: modelContext) }
         }
     }
 
@@ -49,6 +57,7 @@ struct ContentView: View {
             )
             modelContext.insert(record)
             try? modelContext.save()
+            Task { await ReminderScheduler.reschedule(context: modelContext) }
         }
     }
 }

@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "GoldenKick-iOS-Dark-1024@1x.png",
+      "filename" : "GoldenKick-iOS-Default-1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "GoldenKick-iOS-Dark-1024@1x 1.png",
+      "filename" : "GoldenKick-iOS-Dark-1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "GoldenKick-iOS-TintedDark-1024@1x.png",
+      "filename" : "GoldenKick-iOS-TintedLight-1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
