@@ -22,6 +22,12 @@ final class WorkoutRecord {
     /// Total time spent running across all intervals.
     var runDuration: TimeInterval
 
+    /// Plan week/slot this record fulfills, if it was started from the training
+    /// plan. `nil` for workouts run outside the plan (and for older records,
+    /// predating these fields).
+    var planWeek: Int?
+    var planSlot: Int?
+
     init(
         startDate: Date,
         title: String,
@@ -31,7 +37,9 @@ final class WorkoutRecord {
         cooldown: TimeInterval,
         reps: Int,
         activeDuration: TimeInterval,
-        runDuration: TimeInterval
+        runDuration: TimeInterval,
+        planWeek: Int? = nil,
+        planSlot: Int? = nil
     ) {
         self.startDate = startDate
         self.title = title
@@ -42,5 +50,7 @@ final class WorkoutRecord {
         self.reps = reps
         self.activeDuration = activeDuration
         self.runDuration = runDuration
+        self.planWeek = planWeek
+        self.planSlot = planSlot
     }
 }

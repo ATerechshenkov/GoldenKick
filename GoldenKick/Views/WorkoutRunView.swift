@@ -23,7 +23,7 @@ struct WorkoutRunView: View {
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
 
-                if let rep = segment.repIndex {
+                if engine.config.reps > 1, let rep = segment.repIndex {
                     Text("Повтор \(rep) из \(engine.config.reps)")
                         .font(.title2.bold())
                 }
@@ -102,5 +102,5 @@ private extension View {
 }
 
 #Preview {
-    WorkoutRunView(engine: WorkoutEngine(config: .current))
+    WorkoutRunView(engine: WorkoutEngine(config: TrainingPlan.firstWorkoutConfig))
 }

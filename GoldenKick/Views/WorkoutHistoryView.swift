@@ -28,17 +28,34 @@ struct WorkoutHistoryView: View {
             Text(record.startDate.formatted(date: .abbreviated, time: .shortened))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            if let week = record.planWeek, let slot = record.planSlot {
+                Text("Неделя \(week) · тренировка \(slot)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Text(record.title)
                 .font(.headline)
-            HStack {
-                Text("Активное время: \(TimeFormat.mmss(record.activeDuration))")
-                Spacer()
-                Text("Бег: \(TimeFormat.mmss(record.runDuration))")
+            if isRace(record) {
+                Text("Финиш ✓")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+            } else {
+                HStack {
+                    Text("Активное время: \(TimeFormat.mmss(record.activeDuration))")
+                    Spacer()
+                    Text("Бег: \(TimeFormat.mmss(record.runDuration))")
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
+    }
+
+    /// Race slots don't have a meaningful active/run duration to show.
+    private func isRace(_ record: WorkoutRecord) -> Bool {
+        guard let week = record.planWeek, let slot = record.planSlot else { return false }
+        return TrainingPlan.plannedWorkout(week: week, slot: slot)?.asRace != nil
     }
 
     private func delete(at offsets: IndexSet) {

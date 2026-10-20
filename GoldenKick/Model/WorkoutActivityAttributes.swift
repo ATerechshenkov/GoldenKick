@@ -28,15 +28,6 @@ enum SegmentKind: Codable, Hashable {
         }
     }
 
-    var listTitle: String {
-        switch self {
-        case .warmup: "Разминка (шаг)"
-        case .run: "Бег"
-        case .walk: "Шаг"
-        case .cooldown: "Заминка (шаг)"
-        }
-    }
-
     /// Used in "Дальше: …".
     var nextTitle: String {
         switch self {

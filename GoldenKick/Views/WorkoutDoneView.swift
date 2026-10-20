@@ -30,5 +30,5 @@ struct WorkoutDoneView: View {
 }
 
 #Preview {
-    WorkoutDoneView(engine: WorkoutEngine(config: .current))
+    WorkoutDoneView(engine: WorkoutEngine(config: TrainingPlan.firstWorkoutConfig))
 }

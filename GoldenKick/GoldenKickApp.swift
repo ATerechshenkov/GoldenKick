@@ -10,7 +10,7 @@ import SwiftUI
 
 @main
 struct GoldenKickApp: App {
-    @State private var engine = WorkoutEngine(config: .current)
+    @State private var engine = WorkoutEngine(config: TrainingPlan.firstWorkoutConfig)
 
     var body: some Scene {
         WindowGroup {

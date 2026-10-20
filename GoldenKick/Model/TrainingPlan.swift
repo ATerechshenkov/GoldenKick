@@ -96,6 +96,14 @@ enum TrainingPlan {
         return .active(week)
     }
 
+    /// Looks up a specific slot, e.g. to tell whether a `WorkoutRecord`'s
+    /// `planWeek`/`planSlot` refers to a race. `nil` if out of range.
+    static func plannedWorkout(week weekNumber: Int, slot slotNumber: Int) -> PlannedWorkout? {
+        guard let week = weeks.first(where: { $0.number == weekNumber }),
+              slotNumber >= 1, slotNumber <= week.workouts.count else { return nil }
+        return week.workouts[slotNumber - 1]
+    }
+
     /// Used to seed `WorkoutEngine` before any plan slot has been picked.
     /// Week 1 slot 1 is always a `.workout`, never a race.
     static var firstWorkoutConfig: WorkoutConfig {

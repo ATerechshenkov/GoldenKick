@@ -21,11 +21,11 @@ struct WorkoutConfig {
     /// exercise, that exercise is dropped to avoid two identical activities in a row.
     var cooldownActivity: ExerciseKind = .walk
 
-    /// The single place where the workout is defined.
-    static let current = WorkoutConfig(warmup: 5 * 60, run: 1 * 60, walk: 2 * 60, cooldown: 5 * 60, reps: 6)
-
     var title: String {
-        "Бег \(Self.shortMinutes(run)) / шаг \(Self.shortMinutes(walk)) × \(reps)"
+        guard reps > 1 || walk > 0 else {
+            return "Бег \(Self.shortMinutes(run))"
+        }
+        return "Бег \(Self.shortMinutes(run)) / шаг \(Self.shortMinutes(walk)) × \(reps)"
     }
 
     /// Sum of the actual segments after warm-up/cool-down de-duplication.

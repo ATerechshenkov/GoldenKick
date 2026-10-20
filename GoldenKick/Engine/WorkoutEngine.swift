@@ -7,8 +7,10 @@ import UIKit
 final class WorkoutEngine {
     enum Phase { case idle, running, paused, finished }
 
-    let config: WorkoutConfig
-    let segments: [Segment]
+    private(set) var config: WorkoutConfig
+    private(set) var segments: [Segment]
+    /// Which plan week/slot this run fulfills, if started from the training plan.
+    private(set) var planSlot: PlanSlot?
 
     /// Debug: 1 minute = 5 seconds. Applied when the workout starts.
     var fastMode = false
@@ -76,8 +78,11 @@ final class WorkoutEngine {
 
     // MARK: - Controls
 
-    func start() {
+    func start(config: WorkoutConfig, planSlot: PlanSlot? = nil) {
         guard phase == .idle || phase == .finished else { return }
+        self.config = config
+        self.segments = config.makeSegments()
+        self.planSlot = planSlot
         timeScale = fastMode ? 5.0 / 60.0 : 1
         currentIndex = 0
         beepsPlayed = false
@@ -242,7 +247,7 @@ final class WorkoutEngine {
             workoutStart: t.addingTimeInterval(-elapsedActive),
             workoutEnd: t.addingTimeInterval(totalRemaining),
             progress: progress,
-            intervalText: currentSegment.repIndex.map { "Интервал \($0) из \(config.reps)" },
+            intervalText: config.reps > 1 ? currentSegment.repIndex.map { "Интервал \($0) из \(config.reps)" } : nil,
             nextText: nextSegment.map { "Дальше: \($0.kind.nextTitle) \(TimeFormat.mmss(realDuration($0)))" } ?? "Последний отрезок",
             isPaused: phase == .paused,
             isFinished: phase == .finished
@@ -273,6 +278,7 @@ final class WorkoutEngine {
         if segment.id > 0, segments[segment.id - 1].repIndex == rep { return nil }
 
         let reps = config.reps
+        guard reps > 1 else { return nil }
         if rep == reps {
             return "Последний интервал."
         }

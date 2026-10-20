@@ -97,10 +97,17 @@ struct WorkoutListView: View {
                 }
                 .buttonStyle(.borderedProminent)
             } else if case .workout(let config) = workout {
-                Button("Начать") {
-                    engine.start(config: config, planSlot: PlanSlot(week: week.number, slot: slot))
+                if slot == firstIncompleteSlot(week) {
+                    Button("Начать") {
+                        engine.start(config: config, planSlot: PlanSlot(week: week.number, slot: slot))
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    Button("Начать") {
+                        engine.start(config: config, planSlot: PlanSlot(week: week.number, slot: slot))
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(slot == firstIncompleteSlot(week) ? .borderedProminent : .bordered)
             }
         }
         .padding(.vertical, 4)

@@ -43,7 +43,9 @@ struct ContentView: View {
                 cooldown: engine.config.cooldown,
                 reps: engine.config.reps,
                 activeDuration: engine.elapsedActive,
-                runDuration: engine.runDuration
+                runDuration: engine.runDuration,
+                planWeek: engine.planSlot?.week,
+                planSlot: engine.planSlot?.slot
             )
             modelContext.insert(record)
             try? modelContext.save()
@@ -52,6 +54,6 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(engine: WorkoutEngine(config: .current))
+    ContentView(engine: WorkoutEngine(config: TrainingPlan.firstWorkoutConfig))
         .modelContainer(for: WorkoutRecord.self, inMemory: true)
 }
