@@ -1,15 +1,12 @@
 import Foundation
 
-/// A single race slot resolved to its plan position, for display in lists.
-struct RaceEntry: Identifiable {
-    let slot: PlanSlot
-    let race: Race
-    var id: PlanSlot { slot }
+enum PlanDayStatus {
+    case done, upcoming, missed
 }
 
-/// Read-only view over completed workouts, used to answer "what's left this
-/// week" / "what happened on which day" questions. Built fresh from the
-/// current `WorkoutRecord`s each time — nothing here is persisted itself.
+/// Read-only view over completed workouts, used to resolve each plan day's
+/// status. Built fresh from the current `WorkoutRecord`s each time — nothing
+/// here is persisted itself.
 struct PlanProgress {
     private let records: [WorkoutRecord]
 
@@ -17,52 +14,104 @@ struct PlanProgress {
         self.records = records
     }
 
-    func isDone(week: Int, slot: Int) -> Bool {
-        records.contains { $0.planWeek == week && $0.planSlot == slot }
+    /// The record that fulfills this plan day, if any.
+    func record(for day: PlanDay) -> WorkoutRecord? {
+        records.first { $0.planDate.map { Calendar.current.isDate($0, inSameDayAs: day.date) } ?? false }
     }
 
-    func isWeekDone(_ week: TrainingWeek) -> Bool {
-        (1...3).allSatisfy { isDone(week: week.number, slot: $0) }
+    func status(of day: PlanDay, today: Date = .now) -> PlanDayStatus {
+        if record(for: day) != nil { return .done }
+        return day.date >= Calendar.current.startOfDay(for: today) ? .upcoming : .missed
     }
 
-    func firstIncompleteSlot(in week: TrainingWeek) -> Int? {
-        (1...3).first { !isDone(week: week.number, slot: $0) }
+    /// `true` only on the plan day's own calendar date, and only if it isn't
+    /// done yet — this gates both "Начать" and "Финишировал".
+    func canStart(_ day: PlanDay, today: Date = .now) -> Bool {
+        guard record(for: day) == nil else { return false }
+        return Calendar.current.isDate(day.date, inSameDayAs: today)
     }
 
-    /// Calendar days (start of day) on which a record for this week was started.
-    func completionDays(in week: TrainingWeek) -> Set<Date> {
-        let calendar = Calendar.current
-        return Set(records.compactMap { record in
-            guard record.planWeek == week.number else { return nil }
-            return calendar.startOfDay(for: record.startDate)
-        })
+    /// The earliest unfinished plan day on or after `today`.
+    func nextIncomplete(from today: Date = .now) -> PlanDay? {
+        let start = Calendar.current.startOfDay(for: today)
+        return TrainingPlan.days.first { $0.date >= start && record(for: $0) == nil }
     }
 
-    /// `true` if a record exists for this race slot (finished).
-    func raceFinished(_ slot: PlanSlot) -> Bool {
-        isDone(week: slot.week, slot: slot.slot)
+    /// `true` if today has a scheduled workout and it's already done.
+    func isTodayDone(today: Date = .now) -> Bool {
+        guard let day = TrainingPlan.workout(on: today) else { return false }
+        return record(for: day) != nil
     }
 }
 
-extension PlanProgress {
-    /// Every race slot in the plan, in week order.
-    static var raceSlots: [RaceEntry] {
-        TrainingPlan.weeks.flatMap { week in
-            week.workouts.enumerated().compactMap { index, workout in
-                workout.asRace.map { RaceEntry(slot: PlanSlot(week: week.number, slot: index + 1), race: $0) }
-            }
+/// Logic for the Russian day/status text shown on the plan UI, kept out of
+/// the views so it stays testable.
+enum PlanText {
+    /// "Сегодня", "Завтра", "Послезавтра", "Через 5 дней", ...
+    static func relativeDay(_ date: Date, from today: Date = .now) -> String {
+        let calendar = Calendar.current
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: today),
+            to: calendar.startOfDay(for: date)
+        ).day ?? 0
+
+        switch days {
+        case 0: return "Сегодня"
+        case 1: return "Завтра"
+        case 2: return "Послезавтра"
+        default:
+            let word = RussianNumerals.plural(days, one: "день", few: "дня", many: "дней")
+            return "Через \(RussianNumerals.cardinal(days)) \(word)"
         }
     }
 
-    /// The 7 calendar days (Mon...Sun) that make up a plan week.
-    static func days(of week: TrainingWeek) -> [Date] {
-        let calendar = Calendar.current
-        let weekStart = calendar.date(byAdding: .day, value: (week.number - 1) * 7, to: TrainingPlan.startDate)!
-        return (0..<7).map { calendar.date(byAdding: .day, value: $0, to: weekStart)! }
+    /// "чт, 29 окт."
+    static func shortDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.setLocalizedDateFormatFromTemplate("EEEEEE, d MMM")
+        return formatter.string(from: date)
     }
 
-    static func nextWeek(after week: TrainingWeek) -> TrainingWeek? {
-        TrainingPlan.weeks.first { $0.number == week.number + 1 }
+    /// "18 апреля 2027 г."
+    static func longDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+
+    /// "воскресенье, 18 апреля 2027 г."
+    static func fullDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateStyle = .full
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+
+    /// "Сегодня!", "через 5 дн.", "через 3 нед." — for a future/today date.
+    static func countdown(to date: Date, from today: Date = .now) -> String {
+        let calendar = Calendar.current
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: today),
+            to: calendar.startOfDay(for: date)
+        ).day ?? 0
+
+        if days == 0 { return "Сегодня!" }
+        if days <= 14 { return "через \(days) дн." }
+        return "через \(days / 7) нед."
+    }
+
+    static func statusTitle(_ status: PlanDayStatus) -> String {
+        switch status {
+        case .done: "Выполнена"
+        case .upcoming: "Предстоит"
+        case .missed: "Пропущена"
+        }
     }
 }
 

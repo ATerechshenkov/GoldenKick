@@ -28,8 +28,8 @@ struct WorkoutHistoryView: View {
             Text(record.startDate.formatted(date: .abbreviated, time: .shortened))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            if let week = record.planWeek, let slot = record.planSlot {
-                Text("Неделя \(week) · тренировка \(slot)")
+            if let planDate = record.planDate, let day = TrainingPlan.workout(on: planDate) {
+                Text("\(day.phase.title) · \(PlanText.shortDate(planDate))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -52,10 +52,10 @@ struct WorkoutHistoryView: View {
         .padding(.vertical, 2)
     }
 
-    /// Race slots don't have a meaningful active/run duration to show.
+    /// Race days don't have a meaningful active/run duration to show.
     private func isRace(_ record: WorkoutRecord) -> Bool {
-        guard let week = record.planWeek, let slot = record.planSlot else { return false }
-        return TrainingPlan.plannedWorkout(week: week, slot: slot)?.asRace != nil
+        guard let planDate = record.planDate else { return false }
+        return TrainingPlan.workout(on: planDate)?.workout.asRace != nil
     }
 
     private func delete(at offsets: IndexSet) {

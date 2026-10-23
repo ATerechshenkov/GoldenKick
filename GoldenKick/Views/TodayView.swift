@@ -5,62 +5,92 @@ struct TodayView: View {
     @Bindable var engine: WorkoutEngine
     @Environment(\.modelContext) private var modelContext
     @Query private var records: [WorkoutRecord]
+    @State private var selectedDay: PlanDay?
+
+    private var progress: PlanProgress { PlanProgress(records: records) }
 
     var body: some View {
         NavigationStack {
-            content
-                .navigationTitle("Сегодня")
+            List {
+                mainCardSection
+                Section {
+                    PlanCalendarView(progress: progress) { day in
+                        selectedDay = day
+                    }
+                }
+                remindersAndDebugSections
+            }
+            .navigationTitle("Сегодня")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        GoalsView()
+                    } label: {
+                        Image(systemName: "star")
+                    }
+                }
+            }
+            .sheet(item: $selectedDay) { day in
+                PlanDayDetailView(day: day, engine: engine, progress: progress)
+            }
+        }
+    }
+
+    // MARK: - Main card: nearest unfinished plan day
+
+    @ViewBuilder
+    private var mainCardSection: some View {
+        Section {
+            if let day = progress.nextIncomplete() {
+                VStack(alignment: .leading, spacing: 10) {
+                    if progress.isTodayDone() {
+                        Text("Сегодняшняя тренировка выполнена ✓")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.green)
+                    }
+                    Text("\(PlanText.relativeDay(day.date)) · \(PlanText.shortDate(day.date))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(day.workout.title)
+                        .font(.title2.bold())
+                    if let minutesText = day.workout.approxMinutesText {
+                        Text(minutesText)
+                            .foregroundStyle(.secondary)
+                    }
+                    actionButton(for: day)
+                }
+                .padding(.vertical, 6)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("План завершён 💪")
+                        .font(.title2.bold())
+                    Text("Все тренировки плана выполнены")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 6)
+            }
         }
     }
 
     @ViewBuilder
-    private var content: some View {
-        let progress = PlanProgress(records: records)
-        switch TrainingPlan.status() {
-        case .notStarted:
-            List {
-                RaceCountdownSection(progress: progress)
-                Section {
-                    Text("План начнётся в понедельник, 19 октября 2026")
-                        .foregroundStyle(.secondary)
-                }
-                remindersAndDebugSections
-            }
-        case .finished:
-            List {
-                RaceCountdownSection(progress: progress)
-                Section {
-                    Text("План завершён. Полумарафон 18 апреля 2027 позади")
-                        .foregroundStyle(.secondary)
-                }
-                remindersAndDebugSections
-            }
-        case .active(let week):
-            weekList(week, progress: progress)
+    private func actionButton(for day: PlanDay) -> some View {
+        let canStart = progress.canStart(day)
+        if let race = day.workout.asRace {
+            Button("Финишировал") { finishRace(race, day: day) }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity)
+                .disabled(!canStart)
+        } else if case .workout(let config) = day.workout {
+            Button("Начать") { engine.start(config: config, planDate: day.date) }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity)
+                .disabled(!canStart)
         }
     }
 
-    private func weekList(_ week: TrainingWeek, progress: PlanProgress) -> some View {
-        List {
-            RaceCountdownSection(progress: progress)
-
-            Section {
-                mainCard(week: week, progress: progress)
-            }
-
-            Section {
-                WeekStripView(week: week, progress: progress)
-            }
-
-            Section("Тренировки") {
-                ForEach(1...3, id: \.self) { slot in
-                    slotRow(week: week, slot: slot, progress: progress)
-                }
-            }
-
-            remindersAndDebugSections
-        }
-    }
+    // MARK: - Reminders & debug
 
     @ViewBuilder
     private var remindersAndDebugSections: some View {
@@ -78,121 +108,9 @@ struct TodayView: View {
         #endif
     }
 
-    // MARK: - Main card: next unfinished workout, or the week's summary
-
-    @ViewBuilder
-    private func mainCard(week: TrainingWeek, progress: PlanProgress) -> some View {
-        if let slot = progress.firstIncompleteSlot(in: week) {
-            let workout = week.workouts[slot - 1]
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Неделя \(week.number) · \(week.phase.title) · Тренировка \(slot) из 3")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(workout.title)
-                    .font(.title2.bold())
-                if let minutesText = workout.approxMinutesText {
-                    Text(minutesText)
-                        .foregroundStyle(.secondary)
-                } else if let race = workout.asRace {
-                    Text(race.date.formatted(date: .long, time: .omitted))
-                        .foregroundStyle(.secondary)
-                }
-
-                if let race = workout.asRace {
-                    Button("Финишировал") {
-                        finishRace(race, week: week.number, slot: slot)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
-                } else if case .workout(let config) = workout {
-                    Button("Начать") {
-                        engine.start(config: config, planSlot: PlanSlot(week: week.number, slot: slot))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.vertical, 6)
-        } else {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Неделя выполнена 💪")
-                    .font(.title2.bold())
-                if let next = PlanProgress.nextWeek(after: week) {
-                    Text("Дальше: неделя \(next.number) · \(next.phase.title) · \(next.workouts[0].title)")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Это была последняя неделя плана")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.vertical, 6)
-        }
-    }
-
-    // MARK: - This week's slots
-
-    private func slotRow(week: TrainingWeek, slot: Int, progress: PlanProgress) -> some View {
-        let workout = week.workouts[slot - 1]
-        let done = progress.isDone(week: week.number, slot: slot)
-
-        return HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(workout.title)
-                    .font(.headline)
-                if let duration = workout.totalDuration {
-                    Text("≈ \(TimeFormat.mmss(duration))")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                } else if let race = workout.asRace {
-                    Text(race.date.formatted(date: .long, time: .omitted))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            if done {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else if let race = workout.asRace {
-                Button("Финишировал") {
-                    finishRace(race, week: week.number, slot: slot)
-                }
-                .buttonStyle(.borderedProminent)
-            } else if case .workout(let config) = workout {
-                if slot == progress.firstIncompleteSlot(in: week) {
-                    Button("Начать") {
-                        engine.start(config: config, planSlot: PlanSlot(week: week.number, slot: slot))
-                    }
-                    .buttonStyle(.borderedProminent)
-                } else {
-                    Button("Начать") {
-                        engine.start(config: config, planSlot: PlanSlot(week: week.number, slot: slot))
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    /// Races aren't timed — finishing one just marks the slot done in history.
-    private func finishRace(_ race: Race, week: Int, slot: Int) {
-        let record = WorkoutRecord(
-            startDate: .now,
-            title: race.name,
-            warmup: 0,
-            run: 0,
-            walk: 0,
-            cooldown: 0,
-            reps: 0,
-            activeDuration: 0,
-            runDuration: 0,
-            planWeek: week,
-            planSlot: slot
-        )
-        modelContext.insert(record)
+    /// Races aren't timed — finishing one just records the day as done.
+    private func finishRace(_ race: Race, day: PlanDay) {
+        modelContext.insert(WorkoutRecord.raceFinish(race, planDate: day.date))
         try? modelContext.save()
         Task { await ReminderScheduler.reschedule(context: modelContext) }
     }

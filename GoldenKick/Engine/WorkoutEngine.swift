@@ -9,8 +9,8 @@ final class WorkoutEngine {
 
     private(set) var config: WorkoutConfig
     private(set) var segments: [Segment]
-    /// Which plan week/slot this run fulfills, if started from the training plan.
-    private(set) var planSlot: PlanSlot?
+    /// Which plan day this run fulfills, if started from the training plan.
+    private(set) var planDate: Date?
 
     /// Debug: 1 minute = 5 seconds. Applied when the workout starts.
     var fastMode = false
@@ -78,11 +78,11 @@ final class WorkoutEngine {
 
     // MARK: - Controls
 
-    func start(config: WorkoutConfig, planSlot: PlanSlot? = nil) {
+    func start(config: WorkoutConfig, planDate: Date? = nil) {
         guard phase == .idle || phase == .finished else { return }
         self.config = config
         self.segments = config.makeSegments()
-        self.planSlot = planSlot
+        self.planDate = planDate
         timeScale = fastMode ? 5.0 / 60.0 : 1
         currentIndex = 0
         beepsPlayed = false

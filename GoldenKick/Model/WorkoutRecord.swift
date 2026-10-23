@@ -22,11 +22,10 @@ final class WorkoutRecord {
     /// Total time spent running across all intervals.
     var runDuration: TimeInterval
 
-    /// Plan week/slot this record fulfills, if it was started from the training
-    /// plan. `nil` for workouts run outside the plan (and for older records,
-    /// predating these fields).
-    var planWeek: Int?
-    var planSlot: Int?
+    /// The plan day (start of day) this record fulfills, if it was started
+    /// from the training plan. `nil` for workouts run outside the plan (and
+    /// for older records, predating this field).
+    var planDate: Date?
 
     init(
         startDate: Date,
@@ -38,8 +37,7 @@ final class WorkoutRecord {
         reps: Int,
         activeDuration: TimeInterval,
         runDuration: TimeInterval,
-        planWeek: Int? = nil,
-        planSlot: Int? = nil
+        planDate: Date? = nil
     ) {
         self.startDate = startDate
         self.title = title
@@ -50,7 +48,24 @@ final class WorkoutRecord {
         self.reps = reps
         self.activeDuration = activeDuration
         self.runDuration = runDuration
-        self.planWeek = planWeek
-        self.planSlot = planSlot
+        self.planDate = planDate
+    }
+}
+
+extension WorkoutRecord {
+    /// A race finish: no timer involved, so all durations are zero.
+    static func raceFinish(_ race: Race, planDate: Date, finishedAt: Date = .now) -> WorkoutRecord {
+        WorkoutRecord(
+            startDate: finishedAt,
+            title: race.name,
+            warmup: 0,
+            run: 0,
+            walk: 0,
+            cooldown: 0,
+            reps: 0,
+            activeDuration: 0,
+            runDuration: 0,
+            planDate: planDate
+        )
     }
 }

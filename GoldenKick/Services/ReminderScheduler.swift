@@ -2,10 +2,10 @@ import Foundation
 import SwiftData
 import UserNotifications
 
-/// Schedules local notifications for the next 14 days: Tue/Thu/Sat morning
-/// reminders about the next unfinished workout, and race-day / race-eve
-/// notifications. No server — everything is computed from `TrainingPlan` and
-/// the current `WorkoutRecord`s.
+/// Schedules local notifications for the next 14 days: morning reminders on
+/// unfinished plan workout days, and race-day / race-eve notifications. No
+/// server — everything is computed from `TrainingPlan` and the current
+/// `WorkoutRecord`s.
 @MainActor
 enum ReminderScheduler {
     static let enabledKey = "remindersEnabled"
@@ -94,30 +94,28 @@ enum ReminderScheduler {
     }
 
     /// Resolves what a notification on this calendar day should say, if any.
-    /// Order matters: race day, then race eve, then the regular Tue/Thu/Sat check.
+    /// Order matters: race day, then race eve, then the regular plan-day check.
     static func reminderBody(for day: Date, progress: PlanProgress) -> String? {
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: day)
 
-        if let race = PlanProgress.raceSlots.first(where: { calendar.isDate($0.race.date, inSameDayAs: dayStart) })?.race {
+        if let race = TrainingPlan.raceDays.first(where: { $0.date == dayStart })?.workout.asRace {
             return "Сегодня \(race.name)! Удачи 🏁"
         }
 
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: dayStart),
-           let race = PlanProgress.raceSlots.first(where: { calendar.isDate($0.race.date, inSameDayAs: tomorrow) })?.race {
+           let race = TrainingPlan.raceDays.first(where: { $0.date == tomorrow })?.workout.asRace {
             return "Завтра \(race.name). Сегодня отдых — выспись и подготовь форму 🏁"
         }
 
-        let weekday = calendar.component(.weekday, from: dayStart) // 1 = Sun ... 7 = Sat
-        guard [3, 5, 7].contains(weekday) else { return nil } // Tue, Thu, Sat
-        guard case .active(let week) = TrainingPlan.status(on: dayStart) else { return nil }
-        guard let slot = progress.firstIncompleteSlot(in: week) else { return nil }
-
-        let workout = week.workouts[slot - 1]
-        // The next slot is a race, not a timed workout — the race-day/eve
-        // notifications above already cover it.
-        guard case .workout = workout, let minutesText = workout.approxMinutesText else { return nil }
-        return "Доброе утро! Сегодня: \(workout.title), \(minutesText)"
+        // The race-day/eve notifications above already cover race days, so
+        // only a timed workout that isn't done yet gets the morning reminder.
+        guard let planDay = TrainingPlan.workout(on: dayStart),
+              case .workout = planDay.workout,
+              progress.record(for: planDay) == nil,
+              let minutesText = planDay.workout.approxMinutesText
+        else { return nil }
+        return "Доброе утро! Сегодня: \(planDay.workout.title), \(minutesText)"
     }
 
     private static func isoDay(_ date: Date) -> String {

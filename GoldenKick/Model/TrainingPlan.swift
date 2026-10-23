@@ -1,17 +1,9 @@
 import Foundation
 
-/// A single race the plan is building towards.
+/// A single goal the plan is building towards (a race, in code).
 struct Race: Hashable {
     let name: String
     let date: Date
-}
-
-/// Identifies one training slot within the plan: week number (1-based) and
-/// slot number within the week (1...3). Stored alongside a finished workout
-/// in `WorkoutRecord` so the plan can tell which slots are done.
-struct PlanSlot: Hashable {
-    let week: Int
-    let slot: Int
 }
 
 enum TrainingPhase {
@@ -27,7 +19,7 @@ enum TrainingPhase {
     }
 }
 
-/// What a plan slot consists of: either a workout to run through the timer,
+/// What a plan day consists of: either a workout to run through the timer,
 /// or a race day (no timer — the person just marks it finished).
 enum PlannedWorkout {
     case workout(WorkoutConfig)
@@ -55,19 +47,28 @@ enum PlannedWorkout {
 }
 
 struct TrainingWeek {
-    let number: Int
-    /// Exactly 3 slots, in no particular day order — any slot can be done any day.
+    /// Exactly 3 slots: Tuesday, Thursday, Saturday (unless overridden by a race date).
     let workouts: [PlannedWorkout]
     let phase: TrainingPhase
-    /// Recovery week: lighter load (weeks 4, 8, 12, 16, 20).
-    let isRecovery: Bool
+}
+
+/// One calendar day on which the plan has something scheduled.
+struct PlanDay: Identifiable, Hashable {
+    /// Start of day.
+    let date: Date
+    let workout: PlannedWorkout
+    let phase: TrainingPhase
+    var id: Date { date }
+
+    static func == (lhs: PlanDay, rhs: PlanDay) -> Bool { lhs.date == rhs.date }
+    func hash(into hasher: inout Hasher) { hasher.combine(date) }
 }
 
 /// The 26-week plan leading up to the half marathon, as hand-edited static data.
 /// Not stored in a database on purpose — edit the `weeks` table below directly
 /// to adjust the plan.
 enum TrainingPlan {
-    /// Monday the plan starts. The current week number is counted from here.
+    /// Monday the plan starts. Slot 1 of week 1 falls on the Tuesday after.
     static let startDate = date(year: 2026, month: 10, day: 19)
 
     static let roadRace = Race(name: "RoadRace 10 км", date: date(year: 2027, month: 4, day: 4))
@@ -76,39 +77,39 @@ enum TrainingPlan {
     /// Last day the plan covers — the half marathon itself.
     static var endDate: Date { halfMarathon.date }
 
-    enum Status {
-        case notStarted
-        case active(TrainingWeek)
-        case finished
-    }
-
-    /// Resolves which week (if any) a given date falls into.
-    static func status(on date: Date = .now) -> Status {
+    /// Every scheduled day in the plan, in chronological order.
+    static let days: [PlanDay] = {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: date)
-        let start = calendar.startOfDay(for: startDate)
-        guard today >= start else { return .notStarted }
-        guard today <= calendar.startOfDay(for: endDate) else { return .finished }
+        // Tue, Thu, Sat offsets from each week's Monday.
+        let slotOffsets = [1, 3, 5]
+        return weeks.enumerated().flatMap { weekIndex, week -> [PlanDay] in
+            let weekStart = calendar.date(byAdding: .day, value: weekIndex * 7, to: startDate)!
+            return week.workouts.enumerated().map { slotIndex, workout in
+                let date: Date
+                if case .race(let race) = workout {
+                    date = calendar.startOfDay(for: race.date)
+                } else {
+                    date = calendar.date(byAdding: .day, value: slotOffsets[slotIndex], to: weekStart)!
+                }
+                return PlanDay(date: date, workout: workout, phase: week.phase)
+            }
+        }.sorted { $0.date < $1.date }
+    }()
 
-        let daysSinceStart = calendar.dateComponents([.day], from: start, to: today).day ?? 0
-        let weekNumber = daysSinceStart / 7 + 1
-        guard let week = weeks.first(where: { $0.number == weekNumber }) else { return .finished }
-        return .active(week)
+    /// The plan day falling on this calendar date, if any. `nil` on rest days.
+    static func workout(on date: Date) -> PlanDay? {
+        let day = Calendar.current.startOfDay(for: date)
+        return days.first { $0.date == day }
     }
 
-    /// Looks up a specific slot, e.g. to tell whether a `WorkoutRecord`'s
-    /// `planWeek`/`planSlot` refers to a race. `nil` if out of range.
-    static func plannedWorkout(week weekNumber: Int, slot slotNumber: Int) -> PlannedWorkout? {
-        guard let week = weeks.first(where: { $0.number == weekNumber }),
-              slotNumber >= 1, slotNumber <= week.workouts.count else { return nil }
-        return week.workouts[slotNumber - 1]
-    }
+    /// Every race day in the plan, in chronological order.
+    static var raceDays: [PlanDay] { days.filter { $0.workout.asRace != nil } }
 
-    /// Used to seed `WorkoutEngine` before any plan slot has been picked.
-    /// Week 1 slot 1 is always a `.workout`, never a race.
+    /// Used to seed `WorkoutEngine` before any plan day has been picked.
+    /// The first scheduled day is always a `.workout`, never a race.
     static var firstWorkoutConfig: WorkoutConfig {
-        guard case .workout(let config) = weeks[0].workouts[0] else {
-            preconditionFailure("Week 1 slot 1 must be a workout")
+        guard case .workout(let config) = days[0].workout else {
+            preconditionFailure("First plan day must be a workout")
         }
         return config
     }
@@ -159,8 +160,10 @@ private func continuous(_ minutes: Int) -> PlannedWorkout {
     .workout(WorkoutConfig(warmup: 5 * 60, run: Double(minutes) * 60, walk: 0, cooldown: 5 * 60, reps: 1))
 }
 
+/// `number` only drives the phase lookup below — the table keeps it as a
+/// human-readable week index, but `TrainingWeek` itself doesn't store it.
 private func week(_ number: Int, _ slot1: PlannedWorkout, _ slot2: PlannedWorkout, _ slot3: PlannedWorkout) -> TrainingWeek {
-    TrainingWeek(number: number, workouts: [slot1, slot2, slot3], phase: phase(forWeek: number), isRecovery: isRecoveryWeek(number))
+    TrainingWeek(workouts: [slot1, slot2, slot3], phase: phase(forWeek: number))
 }
 
 private func phase(forWeek number: Int) -> TrainingPhase {
@@ -170,10 +173,6 @@ private func phase(forWeek number: Int) -> TrainingPhase {
     case 15...22: .long
     default: .races
     }
-}
-
-private func isRecoveryWeek(_ number: Int) -> Bool {
-    [4, 8, 12, 16, 20].contains(number)
 }
 
 private func date(year: Int, month: Int, day: Int) -> Date {

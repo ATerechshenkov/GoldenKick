@@ -52,8 +52,7 @@ struct ContentView: View {
                 reps: engine.config.reps,
                 activeDuration: engine.elapsedActive,
                 runDuration: engine.runDuration,
-                planWeek: engine.planSlot?.week,
-                planSlot: engine.planSlot?.slot
+                planDate: engine.planDate
             )
             modelContext.insert(record)
             try? modelContext.save()

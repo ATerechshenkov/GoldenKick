@@ -47,7 +47,7 @@ struct RemindersSection: View {
                 }
             }
         } footer: {
-            Text("По вторникам, четвергам и субботам, и в дни забегов.")
+            Text("В дни тренировок по плану и в дни целей.")
         }
         .task { await refreshDeniedState() }
     }
