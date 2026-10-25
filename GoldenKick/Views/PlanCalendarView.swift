@@ -129,14 +129,7 @@ struct PlanCalendarView: View {
         case .done: shape.fill(Color.accentColor)
         case .upcoming: shape.strokeBorder(Color.accentColor, lineWidth: 2)
         case .missed: shape.fill(Color(.systemGray4))
-        case .madeUp:
-            shape.fill(Color(.systemGray4))
-                .overlay(alignment: .topTrailing) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
-                        .padding(3)
-                }
+        case .madeUp: shape.fill(Color.accentColor.opacity(0.45))
         case nil: EmptyView()
         }
     }
