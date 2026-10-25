@@ -1,7 +1,20 @@
 import Foundation
 
 enum PlanDayStatus {
-    case done, upcoming, missed
+    case done, upcoming, missed, madeUp
+}
+
+/// Why a missed workout can't be made up right now.
+enum MakeupBlocker {
+    case todayHasOwnWorkout, alreadyTrainedToday, tooLate
+}
+
+extension WorkoutRecord {
+    /// A make-up run: started on a different day than the plan day it fulfills.
+    var isMakeup: Bool {
+        guard let planDate else { return false }
+        return !Calendar.current.isDate(planDate, inSameDayAs: startDate)
+    }
 }
 
 /// Read-only view over completed workouts, used to resolve each plan day's
@@ -20,8 +33,30 @@ struct PlanProgress {
     }
 
     func status(of day: PlanDay, today: Date = .now) -> PlanDayStatus {
-        if record(for: day) != nil { return .done }
+        if let record = record(for: day) { return record.isMakeup ? .madeUp : .done }
         return day.date >= Calendar.current.startOfDay(for: today) ? .upcoming : .missed
+    }
+
+    /// The make-up run that was started on this calendar day, if any.
+    func makeupRecord(on date: Date) -> WorkoutRecord? {
+        records.first { $0.isMakeup && Calendar.current.isDate($0.startDate, inSameDayAs: date) }
+    }
+
+    /// `nil` if a missed workout can be made up today; otherwise the first
+    /// reason it can't.
+    func makeupBlocker(for day: PlanDay, today: Date = .now) -> MakeupBlocker? {
+        let calendar = Calendar.current
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: day.date),
+            to: calendar.startOfDay(for: today)
+        ).day ?? 0
+        if days > 7 { return .tooLate }
+        if TrainingPlan.workout(on: today) != nil { return .todayHasOwnWorkout }
+        if records.contains(where: { calendar.isDate($0.startDate, inSameDayAs: today) }) {
+            return .alreadyTrainedToday
+        }
+        return nil
     }
 
     /// `true` only on the plan day's own calendar date, and only if it isn't
@@ -111,6 +146,15 @@ enum PlanText {
         case .done: "Выполнена"
         case .upcoming: "Предстоит"
         case .missed: "Пропущена"
+        case .madeUp: "Отработана"
+        }
+    }
+
+    static func makeupBlockerText(_ blocker: MakeupBlocker) -> String {
+        switch blocker {
+        case .todayHasOwnWorkout: "Сегодня по плану своя тренировка"
+        case .alreadyTrainedToday: "Сегодня тренировка уже была"
+        case .tooLate: "Отработать можно в течение 7 дней"
         }
     }
 }

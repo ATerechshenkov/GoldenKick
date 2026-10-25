@@ -29,7 +29,7 @@ struct WorkoutHistoryView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             if let planDate = record.planDate, let day = TrainingPlan.workout(on: planDate) {
-                Text("\(day.phase.title) · \(PlanText.shortDate(planDate))")
+                Text("\(day.phase.title) · \(record.isMakeup ? "Отработка за " : "")\(PlanText.shortDate(planDate))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -6,6 +6,7 @@ struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var records: [WorkoutRecord]
     @State private var selectedDay: PlanDay?
+    @State private var selectedMakeup: WorkoutRecord?
 
     private var progress: PlanProgress { PlanProgress(records: records) }
 
@@ -14,9 +15,7 @@ struct TodayView: View {
             List {
                 mainCardSection
                 Section {
-                    PlanCalendarView(progress: progress) { day in
-                        selectedDay = day
-                    }
+                    PlanCalendarView(progress: progress, onSelect: { selectedDay = $0 }, onSelectMakeup: { selectedMakeup = $0 })
                 }
                 remindersAndDebugSections
             }
@@ -32,6 +31,12 @@ struct TodayView: View {
             }
             .sheet(item: $selectedDay) { day in
                 PlanDayDetailView(day: day, engine: engine, progress: progress)
+            }
+            .sheet(item: $selectedMakeup) { record in
+                NavigationStack {
+                    MakeupDayDetailView(record: record, showsClose: true)
+                }
+                .presentationDetents([.medium])
             }
         }
     }

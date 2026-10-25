@@ -37,7 +37,7 @@ struct GoalsView: View {
 
     private func statusText(for day: PlanDay) -> String {
         switch progress.status(of: day) {
-        case .done: "Выполнена ✓"
+        case .done, .madeUp: "Выполнена ✓"
         case .missed: "Пропущена"
         case .upcoming: PlanText.countdown(to: day.date)
         }
@@ -45,7 +45,7 @@ struct GoalsView: View {
 
     private func statusColor(for day: PlanDay) -> Color {
         switch progress.status(of: day) {
-        case .done: .green
+        case .done, .madeUp: .green
         case .missed: .secondary
         case .upcoming: .primary
         }

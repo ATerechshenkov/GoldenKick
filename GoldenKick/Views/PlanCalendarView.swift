@@ -6,6 +6,7 @@ import SwiftUI
 struct PlanCalendarView: View {
     let progress: PlanProgress
     var onSelect: (PlanDay) -> Void
+    var onSelectMakeup: (WorkoutRecord) -> Void
 
     @State private var displayedMonth = clampMonth(monthStart(.now))
     /// +1 when the last navigation moved forward, -1 when backward — picks
@@ -94,10 +95,16 @@ struct PlanCalendarView: View {
         let day = TrainingPlan.workout(on: date)
         let isCurrentMonth = calendar.isDate(date, equalTo: displayedMonth, toGranularity: .month)
         let isToday = calendar.isDateInToday(date)
-        let status = day.map { progress.status(of: $0) }
+        // A make-up day has no plan day of its own and looks like a done one.
+        let makeup = day == nil ? progress.makeupRecord(on: date) : nil
+        let status = day.map { progress.status(of: $0) } ?? (makeup == nil ? nil : .done)
 
         Button {
-            if let day { onSelect(day) }
+            if let day {
+                onSelect(day)
+            } else if let makeup {
+                onSelectMakeup(makeup)
+            }
         } label: {
             VStack(spacing: 2) {
                 Text("\(calendar.component(.day, from: date))")
@@ -110,7 +117,7 @@ struct PlanCalendarView: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(day == nil)
+        .disabled(day == nil && makeup == nil)
         .frame(maxWidth: .infinity)
         .opacity(isCurrentMonth ? 1 : 0.35)
     }
@@ -122,6 +129,14 @@ struct PlanCalendarView: View {
         case .done: shape.fill(Color.accentColor)
         case .upcoming: shape.strokeBorder(Color.accentColor, lineWidth: 2)
         case .missed: shape.fill(Color(.systemGray4))
+        case .madeUp:
+            shape.fill(Color(.systemGray4))
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(3)
+                }
         case nil: EmptyView()
         }
     }
