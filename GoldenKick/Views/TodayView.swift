@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct TodayView: View {
-    @Bindable var engine: WorkoutEngine
+    let engine: WorkoutEngine
     @Environment(\.modelContext) private var modelContext
     @Query private var records: [WorkoutRecord]
     @State private var selectedDay: PlanDay?
@@ -17,7 +17,8 @@ struct TodayView: View {
                 Section {
                     PlanCalendarView(progress: progress, onSelect: { selectedDay = $0 }, onSelectMakeup: { selectedMakeup = $0 })
                 }
-                remindersAndDebugSections
+                RemindersSection()
+                debugSection
             }
             .navigationTitle("Сегодня")
             .toolbar {
@@ -95,20 +96,17 @@ struct TodayView: View {
         }
     }
 
-    // MARK: - Reminders & debug
+    // MARK: - Debug
 
     @ViewBuilder
-    private var remindersAndDebugSections: some View {
-        RemindersSection()
-
+    private var debugSection: some View {
         #if DEBUG
         Section {
-            Toggle("Быстрый режим (1 мин = 5 с)", isOn: $engine.fastMode)
-            Button("Тестовое напоминание через 5 с") {
-                Task { await ReminderScheduler.sendTestNow(context: modelContext) }
+            Button("Тест: ускоренная тренировка (1 мин = 5 с)") {
+                engine.start(config: TrainingPlan.firstWorkoutConfig, timeScale: 5.0 / 60.0, isTest: true)
             }
         } footer: {
-            Text("Только в отладочной сборке. Тренировки в этом режиме не отмечаются выполненными.")
+            Text("Только в отладочной сборке. Тестовая тренировка не отмечается выполненной и не попадает в историю.")
         }
         #endif
     }

@@ -56,23 +56,6 @@ enum ReminderScheduler {
         }
     }
 
-    #if DEBUG
-    /// Fires the same "next workout" reminder 5 seconds from now, for debugging.
-    static func sendTestNow(context: ModelContext) async {
-        let records = (try? context.fetch(FetchDescriptor<WorkoutRecord>())) ?? []
-        let progress = PlanProgress(records: records)
-        let body = reminderBody(for: Date(), progress: progress) ?? "Доброе утро! Самое время размяться 🏃"
-
-        let content = UNMutableNotificationContent()
-        content.title = "GoldenKick"
-        content.body = body
-        content.sound = .default
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
-        let request = UNNotificationRequest(identifier: "reminder-test", content: content, trigger: trigger)
-        try? await UNUserNotificationCenter.current().add(request)
-    }
-    #endif
-
     // MARK: - Pure scheduling logic (testable without UNUserNotificationCenter)
 
     /// Computes (fire date, notification text) pairs for the next 14 days,

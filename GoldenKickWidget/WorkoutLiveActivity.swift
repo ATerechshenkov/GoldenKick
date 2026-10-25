@@ -5,155 +5,155 @@ import SwiftUI
 struct WorkoutLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutActivityAttributes.self) { context in
-            LockScreenView(state: context.state)
-                .activityBackgroundTint(context.state.kind.color)
+            LockScreenView(title: title(for: context), state: context.state)
+                .activityBackgroundTint(.black.opacity(0.6))
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label {
-                        Text(context.state.kind.title)
-                            .font(.headline)
-                    } icon: {
-                        Image(systemName: context.state.kind.symbolName)
-                    }
-                    .foregroundStyle(context.state.kind.color)
+                    Image(systemName: "figure.run")
+                        .font(.title2)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    CountdownView(state: context.state)
+                    TotalTimeView(state: context.state)
                         .font(.title2.monospacedDigit().bold())
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            // Reserved even when empty so the region's height doesn't change between phases.
-                            Text(context.state.intervalText ?? " ")
-                                .font(.subheadline)
-                                .opacity(context.state.intervalText == nil ? 0 : 1)
-
-                            Spacer(minLength: 8)
-
-                            Text(context.state.isFinished ? summaryText(for: context.state) : context.state.nextText)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        ProgressBar(state: context.state)
-                    }
-                    .padding(.horizontal, 4)
+                    SegmentedProgressBar(state: context.state, height: 9)
+                        .padding(.horizontal, 4)
                 }
             } compactLeading: {
-                Image(systemName: context.state.kind.symbolName)
-                    .foregroundStyle(context.state.kind.color)
+                Image(systemName: "figure.run")
             } compactTrailing: {
-                CountdownView(state: context.state)
+                TotalTimeView(state: context.state)
                     .font(.caption.monospacedDigit().bold())
                     .frame(width: 44)
             } minimal: {
-                Image(systemName: context.state.kind.symbolName)
-                    .foregroundStyle(context.state.kind.color)
+                Image(systemName: "figure.run")
             }
         }
     }
 }
 
-/// Total elapsed workout time once finished: `workoutStart...workoutEnd` collapses to this span
-/// as soon as `totalRemaining` hits zero, so no separate stored field is needed.
-private func summaryText(for state: WorkoutActivityAttributes.ContentState) -> String {
-    "Итого: \(TimeFormat.mmss(state.workoutEnd.timeIntervalSince(state.workoutStart)))"
+private func title(for context: ActivityViewContext<WorkoutActivityAttributes>) -> String {
+    context.state.isFinished ? "ТРЕНИРОВКА ЗАВЕРШЕНА" : context.attributes.workoutTitle
 }
 
-/// Every row below is always present (reserved via `opacity`/placeholder text when not applicable)
-/// so the card's layout and height stay fixed across all phases, pause, and the finished state —
-/// nothing should reflow or resize while the Live Activity is running.
+/// Nothing here depends on content updates while running: total time and the progress
+/// overlay are driven by the system's timers, the segment strip is static.
 private struct LockScreenView: View {
+    let title: String
     let state: WorkoutActivityAttributes.ContentState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                CountdownView(state: state)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                TotalTimeView(state: state)
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
                     .monospacedDigit()
-                    .frame(width: 92, alignment: .leading)
+                    .frame(width: 84, alignment: .leading)
 
                 Spacer(minLength: 8)
 
-                Text(state.isFinished ? "ТРЕНИРОВКА ЗАВЕРШЕНА" : state.kind.title)
-                    .font(.system(size: 26, weight: .heavy))
+                Text(state.isPaused ? "ПАУЗА" : title)
+                    .font(.system(size: 18, weight: .heavy))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .multilineTextAlignment(.trailing)
             }
 
-            Text("ПАУЗА")
-                .font(.subheadline.bold())
-                .padding(.horizontal, 10)
-                .padding(.vertical, 3)
-                .background(.white.opacity(0.25), in: Capsule())
-                .opacity(state.isPaused ? 1 : 0)
-
-            HStack {
-                Text(state.intervalText ?? " ")
-                    .font(.subheadline)
-                    .opacity(state.intervalText == nil ? 0 : 1)
-
-                Spacer(minLength: 8)
-
-                Text(state.isFinished ? summaryText(for: state) : state.nextText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            ProgressBar(state: state)
+            SegmentedProgressBar(state: state, height: 9)
         }
-        .padding(20)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
         .foregroundStyle(.white)
     }
 }
 
-/// Live countdown driven by the system while running; a frozen value while paused;
-/// pinned to "0:00" once finished, rather than disappearing.
-private struct CountdownView: View {
+/// Whole-workout time: a live countdown driven by the system while running, a frozen
+/// value while paused, and the total elapsed time once finished.
+private struct TotalTimeView: View {
     let state: WorkoutActivityAttributes.ContentState
 
     var body: some View {
         if state.isFinished {
-            Text(TimeFormat.mmss(0))
-        } else if let end = state.segmentEnd {
-            Text(timerInterval: Date()...max(end, Date()), countsDown: true)
+            Text(TimeFormat.mmss(state.workoutEnd.timeIntervalSince(state.workoutStart)))
+        } else if state.isPaused {
+            Text(TimeFormat.mmss(state.pausedTotalRemaining))
         } else {
-            Text(TimeFormat.mmss(state.pausedRemaining))
+            Text(timerInterval: Date()...max(state.workoutEnd, Date()), countsDown: true)
         }
     }
 }
 
-/// Overall workout progress: advances on its own while running, frozen while paused.
-private struct ProgressBar: View {
+/// A fat bar of the whole workout: one coloured block per segment (run orange, walk green,
+/// warm-up/cool-down blue), with the part already done darkened by the system-driven
+/// progress view laid on top, so the bright part is what's still ahead.
+private struct SegmentedProgressBar: View {
     let state: WorkoutActivityAttributes.ContentState
+    let height: CGFloat
+
+    private let spacing: CGFloat = 2
 
     var body: some View {
+        ZStack {
+            blocks
+            progressOverlay
+        }
+        .frame(height: height)
+        .clipShape(RoundedRectangle(cornerRadius: height / 3))
+    }
+
+    private var blocks: some View {
+        GeometryReader { geometry in
+            let usable = geometry.size.width - spacing * CGFloat(max(state.blocks.count - 1, 0))
+            HStack(spacing: spacing) {
+                ForEach(Array(state.blocks.enumerated()), id: \.offset) { _, block in
+                    Rectangle()
+                        .fill(block.kind.color)
+                        .frame(width: usable * block.fraction)
+                }
+            }
+        }
+    }
+
+    /// The system's own progress view, stretched to the bar's height (its natural height is
+    /// about 4 pt). Its filled part is a translucent black, which dims the blocks already passed.
+    /// It must not be masked: a mask is sized to the unscaled view and cuts the dimming short.
+    @ViewBuilder
+    private var progressOverlay: some View {
         if !state.isPaused, !state.isFinished, state.workoutEnd > state.workoutStart {
-            ProgressView(timerInterval: state.workoutStart...state.workoutEnd, countsDown: false)
-                .tint(.white)
+            ProgressView(timerInterval: state.workoutStart...state.workoutEnd, countsDown: false) {
+                EmptyView()
+            } currentValueLabel: {
+                EmptyView()
+            }
+            .tint(.black.opacity(0.55))
+            .scaleEffect(x: 1, y: height / 4)
         } else {
-            ProgressView(value: state.progress)
-                .tint(.white)
+            ProgressView(value: state.isFinished ? 1 : state.progress)
+                .tint(.black.opacity(0.55))
+                .scaleEffect(x: 1, y: height / 4)
         }
     }
 }
 
-#Preview("Lock Screen", as: .content, using: WorkoutActivityAttributes(workoutTitle: "Бег 1:00 / шаг 2:00 × 6")) {
+#Preview("Lock Screen", as: .content, using: WorkoutActivityAttributes(workoutTitle: "Бег 1 мин / шаг 2 мин × 6")) {
     WorkoutLiveActivity()
 } contentStates: {
     WorkoutActivityAttributes.ContentState(
-        kind: .run,
-        segmentEnd: Date().addingTimeInterval(45),
-        pausedRemaining: 45,
+        blocks: [
+            .init(kind: .warmup, fraction: 0.2),
+            .init(kind: .run, fraction: 0.1),
+            .init(kind: .walk, fraction: 0.2),
+            .init(kind: .run, fraction: 0.1),
+            .init(kind: .walk, fraction: 0.2),
+            .init(kind: .cooldown, fraction: 0.2)
+        ],
         workoutStart: Date().addingTimeInterval(-300),
         workoutEnd: Date().addingTimeInterval(900),
+        pausedTotalRemaining: 900,
         progress: 0.25,
-        intervalText: "Интервал 3 из 6",
-        nextText: "Дальше: шаг 2:00",
         isPaused: false,
         isFinished: false
     )

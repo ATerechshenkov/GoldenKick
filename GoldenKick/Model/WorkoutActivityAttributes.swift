@@ -46,13 +46,6 @@ enum SegmentKind: Codable, Hashable {
         }
     }
 
-    /// SF Symbol shown in the Live Activity / Dynamic Island.
-    var symbolName: String {
-        switch activity {
-        case .run: "figure.run"
-        case .walk: "figure.walk"
-        }
-    }
 }
 
 enum TimeFormat {
@@ -68,21 +61,23 @@ enum TimeFormat {
 nonisolated struct WorkoutActivityAttributes: ActivityAttributes {
     let workoutTitle: String
 
-    nonisolated struct ContentState: Codable, Hashable {
+    /// One segment of the workout's schedule: sent once, drawn statically as a coloured
+    /// block of the progress strip (the system can't re-render anything else on its own).
+    nonisolated struct Block: Codable, Hashable {
         var kind: SegmentKind
-        /// nil while paused — the countdown is frozen then.
-        var segmentEnd: Date?
-        /// Shown instead of a live countdown while paused.
-        var pausedRemaining: TimeInterval
+        /// Share of the whole workout's duration, 0...1.
+        var fraction: Double
+    }
+
+    nonisolated struct ContentState: Codable, Hashable {
+        var blocks: [Block]
         var workoutStart: Date
         var workoutEnd: Date
+        /// Whole-workout time left, shown instead of a live countdown while paused.
+        var pausedTotalRemaining: TimeInterval
         /// Static progress fraction, used while paused (the live progress bar
         /// otherwise advances on its own between workoutStart and workoutEnd).
         var progress: Double
-        /// "Интервал 3 из 6", nil for warm-up/cool-down.
-        var intervalText: String?
-        /// "Дальше: шаг 2:00" or "Последний отрезок".
-        var nextText: String
         var isPaused: Bool
         var isFinished: Bool
     }

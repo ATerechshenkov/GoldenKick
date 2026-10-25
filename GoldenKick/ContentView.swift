@@ -37,11 +37,11 @@ struct ContentView: View {
         }
     }
 
-    /// Records a completed workout to history, unless it ran in fast mode.
+    /// Records a completed workout to history, unless it was a test run.
     private func connectHistorySaving() {
         guard engine.onFinish == nil else { return }
         engine.onFinish = { [weak engine, modelContext] in
-            guard let engine, engine.timeScale == 1, let startDate = engine.startDate else { return }
+            guard let engine, !engine.isTest, let startDate = engine.startDate else { return }
             let record = WorkoutRecord(
                 startDate: startDate,
                 title: engine.config.title,

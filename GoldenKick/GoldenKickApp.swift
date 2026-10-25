@@ -16,6 +16,8 @@ struct GoldenKickApp: App {
 
     init() {
         UNUserNotificationCenter.current().delegate = notificationDelegate
+        // No workout can be running at launch, so any surviving activity is a leftover.
+        LiveActivityService.endAll()
     }
 
     var body: some Scene {

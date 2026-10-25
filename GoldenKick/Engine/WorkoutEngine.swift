@@ -12,9 +12,6 @@ final class WorkoutEngine {
     /// Which plan day this run fulfills, if started from the training plan.
     private(set) var planDate: Date?
 
-    /// Debug: 1 minute = 5 seconds. Applied when the workout starts.
-    var fastMode = false
-
     private(set) var phase: Phase = .idle
     private(set) var currentIndex = 0
     /// Real seconds left in the current segment.
@@ -24,6 +21,8 @@ final class WorkoutEngine {
     /// Real seconds of workout time (pauses excluded), shown on the finish screen.
     private(set) var elapsedActive: TimeInterval = 0
     private(set) var timeScale: Double = 1
+    /// Debug run started from the test button; never recorded in history.
+    private(set) var isTest = false
     /// Wall-clock time the workout was started, for the history record.
     private(set) var startDate: Date?
 
@@ -78,12 +77,14 @@ final class WorkoutEngine {
 
     // MARK: - Controls
 
-    func start(config: WorkoutConfig, planDate: Date? = nil) {
+    /// `timeScale` < 1 compresses real time. Test runs (`isTest`) aren't saved to history.
+    func start(config: WorkoutConfig, planDate: Date? = nil, timeScale: Double = 1, isTest: Bool = false) {
         guard phase == .idle || phase == .finished else { return }
         self.config = config
         self.segments = config.makeSegments()
         self.planDate = planDate
-        timeScale = fastMode ? 5.0 / 60.0 : 1
+        self.timeScale = timeScale
+        self.isTest = isTest
         currentIndex = 0
         beepsPlayed = false
         pendingAudioShutdown = false
@@ -108,7 +109,7 @@ final class WorkoutEngine {
         phase = .paused
         audio.stopBeeps()
         speech.speak("Пауза")
-        liveActivity.update(makeActivityState(at: now()))
+        liveActivity.update(makeActivityState(at: now()), reason: "pause")
     }
 
     func resume() {
@@ -118,7 +119,7 @@ final class WorkoutEngine {
         phase = .running
         speech.speak("Продолжаем")
         updateDisplay(at: t)
-        liveActivity.update(makeActivityState(at: t))
+        liveActivity.update(makeActivityState(at: t), reason: "resume")
     }
 
     func stop() {
@@ -130,7 +131,7 @@ final class WorkoutEngine {
         audio.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         phase = .idle
-        liveActivity.end(makeActivityState(at: now()), immediately: true)
+        liveActivity.end(makeActivityState(at: now()), dismissAt: nil)
     }
 
     func reset() {
@@ -172,7 +173,6 @@ final class WorkoutEngine {
         if currentIndex != startIndex {
             beepsPlayed = false
             speech.speak(announcement(for: currentSegment), interrupt: true)
-            liveActivity.update(makeActivityState(at: t))
         }
 
         let left = end.timeIntervalSince(t)
@@ -205,7 +205,8 @@ final class WorkoutEngine {
 
         pendingAudioShutdown = true
         speech.speak("Тренировка завершена. Отличная работа.")
-        liveActivity.end(makeActivityState(at: now()), immediately: false)
+        let finishedAt = now()
+        liveActivity.end(makeActivityState(at: finishedAt), dismissAt: finishedAt.addingTimeInterval(5))
         onFinish?()
         // Fallback in case the synthesizer never reports completion.
         Task { [weak self] in
@@ -241,14 +242,11 @@ final class WorkoutEngine {
 
     private func makeActivityState(at t: Date) -> WorkoutActivityAttributes.ContentState {
         WorkoutActivityAttributes.ContentState(
-            kind: currentSegment.kind,
-            segmentEnd: segmentEndDate,
-            pausedRemaining: phase == .paused ? pausedRemaining : remaining,
+            blocks: segments.map { .init(kind: $0.kind, fraction: realDuration($0) / totalRealDuration) },
             workoutStart: t.addingTimeInterval(-elapsedActive),
             workoutEnd: t.addingTimeInterval(totalRemaining),
+            pausedTotalRemaining: totalRemaining,
             progress: progress,
-            intervalText: config.reps > 1 ? currentSegment.repIndex.map { "Интервал \($0) из \(config.reps)" } : nil,
-            nextText: nextSegment.map { "Дальше: \($0.kind.nextTitle) \(TimeFormat.mmss(realDuration($0)))" } ?? "Последний отрезок",
             isPaused: phase == .paused,
             isFinished: phase == .finished
         )
